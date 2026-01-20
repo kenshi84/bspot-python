@@ -208,3 +208,4 @@ __marimo__/
 temp*
 a.out
 .vscode/
+.cibw/

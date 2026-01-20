@@ -1,12 +1,16 @@
 #include <vector>
 #include <nanobind/nanobind.h>
 #include <nanobind/eigen/dense.h>
+#include <omp.h>
 #include "BSP-OT_header_only.h"
 
 namespace nb = nanobind;
 using namespace nb::literals;
 using namespace Eigen;
 using namespace BSPOT;
+
+int num_threads = 0;
+void set_num_threads(int n) { num_threads = n; }
 
 template<int dim>
 VectorXi compute_partial_dim(const Matrix<scalar,-1,-1> &A,
@@ -38,6 +42,9 @@ VectorXi compute_partial(const Matrix<scalar,-1,-1> &A,
                          const Matrix<scalar,-1,-1> &B,
                          int num_plans = 16,
                          bool orthogonal = false) {
+    if (num_threads > 0) {
+        omp_set_num_threads(num_threads);
+    }
     if (A.rows() != B.rows()) {
         throw std::runtime_error("Source and target points must have the same dimension");
     }
@@ -68,5 +75,7 @@ NB_MODULE(pybspot_f32, m)
 {
     m.def("compute_partial", &compute_partial, "A"_a, "B"_a, "num_plans"_a = 16, "orthogonal"_a = false,
           "Computes partial matching between two point clouds in 2<=d<=6 dimension.");
+    m.def("set_num_threads", &set_num_threads, "n"_a,
+          "Sets the number of threads used in computation. If n<=0, uses default number of threads.");
     m.doc() = "A Python binding to BSP-OT";
 }

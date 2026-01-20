@@ -9,3 +9,7 @@ description = "Python bindings to BSP-OT"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { file = "LICENSE" }
+
+[tool.cibuildwheel.macos]
+before-build = "bash scripts/build_libomp_macos.sh"
+environment = "MACOSX_DEPLOYMENT_TARGET=11.0 OpenMP_ROOT=.cibw/libomp CMAKE_PREFIX_PATH=.cibw/libomp"
