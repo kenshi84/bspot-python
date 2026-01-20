@@ -13,10 +13,10 @@ int num_threads = 0;
 void set_num_threads(int n) { num_threads = n; }
 
 template<int dim>
-VectorXi compute_partial_dim(const Matrix<scalar,-1,-1> &A,
-                             const Matrix<scalar,-1,-1> &B,
-                             int num_plans,
-                             bool orthogonal) {
+VectorXi compute_partial_matching_dim(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
+                                      const nb::DRef<const Matrix<scalar,-1,-1>> &B,
+                                      int num_plans,
+                                      bool orthogonal) {
     const Points<dim> A_fixed = A;
     const Points<dim> B_fixed = B;
     const cost_function cost = [&A_fixed, &B_fixed](size_t i, size_t j) {
@@ -38,10 +38,10 @@ VectorXi compute_partial_dim(const Matrix<scalar,-1,-1> &A,
     return Map<const VectorXi>(result.getPlan().data(), result.getPlan().size());
 }
 
-VectorXi compute_partial(const Matrix<scalar,-1,-1> &A,
-                         const Matrix<scalar,-1,-1> &B,
-                         int num_plans = 16,
-                         bool orthogonal = false) {
+VectorXi compute_partial_matching(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
+                                  const nb::DRef<const Matrix<scalar,-1,-1>> &B,
+                                  int num_plans = 16,
+                                  bool orthogonal = false) {
     if (num_threads > 0) {
         omp_set_num_threads(num_threads);
     }
@@ -53,15 +53,15 @@ VectorXi compute_partial(const Matrix<scalar,-1,-1> &A,
     }
     switch (A.rows()) {
     case 2:
-        return compute_partial_dim<2>(A, B, num_plans, orthogonal);
+        return compute_partial_matching_dim<2>(A, B, num_plans, orthogonal);
     case 3:
-        return compute_partial_dim<3>(A, B, num_plans, orthogonal);
+        return compute_partial_matching_dim<3>(A, B, num_plans, orthogonal);
     case 4:
-        return compute_partial_dim<4>(A, B, num_plans, orthogonal);
+        return compute_partial_matching_dim<4>(A, B, num_plans, orthogonal);
     case 5:
-        return compute_partial_dim<5>(A, B, num_plans, orthogonal);
+        return compute_partial_matching_dim<5>(A, B, num_plans, orthogonal);
     case 6:
-        return compute_partial_dim<6>(A, B, num_plans, orthogonal);
+        return compute_partial_matching_dim<6>(A, B, num_plans, orthogonal);
     default:
         throw std::runtime_error("Dimension higher than 6 is not supported");
     }
@@ -73,7 +73,7 @@ NB_MODULE(pybspot, m)
 NB_MODULE(pybspot_f32, m)
 #endif
 {
-    m.def("compute_partial", &compute_partial, "A"_a, "B"_a, "num_plans"_a = 16, "orthogonal"_a = false,
+    m.def("compute_partial_matching", &compute_partial_matching, "A"_a, "B"_a, "num_plans"_a = 16, "orthogonal"_a = false,
           "Computes partial matching between two point clouds in 2<=d<=6 dimension.");
     m.def("set_num_threads", &set_num_threads, "n"_a,
           "Sets the number of threads used in computation. If n<=0, uses default number of threads.");
