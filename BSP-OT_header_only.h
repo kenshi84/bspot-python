@@ -17,8 +17,11 @@
 namespace BSPOT {
 namespace fs = std::filesystem;
 
- using scalar = double;
-//using scalar = float;
+#ifndef BSPOT_SINGLE_PRECISION
+using scalar = double;
+#else
+using scalar = float;
+#endif
 using scalars = std::vector<scalar>;
 
 using vec = Eigen::Vector3<scalar>;

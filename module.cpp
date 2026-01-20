@@ -8,8 +8,8 @@ using namespace nb::literals;
 using namespace Eigen;
 using namespace BSPOT;
 
-VectorXi compute_partial_2d(const Matrix2Xd &A,
-                            const Matrix2Xd &B,
+VectorXi compute_partial_2d(const Matrix<scalar,2,-1> &A,
+                            const Matrix<scalar,2,-1> &B,
                             int num_plans = 16,
                             bool orthogonal = false) {
     const cost_function cost = [&A, &B](size_t i, size_t j) {
@@ -20,7 +20,7 @@ VectorXi compute_partial_2d(const Matrix2Xd &A,
 #pragma omp parallel for
     for (int i = 0; i < num_plans; i++){
         if (orthogonal) {
-            const Matrix2Xd Q = sampleUnitGaussianMat(2, 2).fullPivHouseholderQr().matrixQ();
+            const Matrix<scalar,2,-1> Q = sampleUnitGaussianMat(2, 2).fullPivHouseholderQr().matrixQ();
             plans[i] = BSP.computePartialMatching(Q, false);
         } else {
             plans[i] = BSP.computePartialMatching();
@@ -31,7 +31,12 @@ VectorXi compute_partial_2d(const Matrix2Xd &A,
     return Map<const VectorXi>(result.getPlan().data(), result.getPlan().size());
 }
 
-NB_MODULE(pybspot, m) {
+#ifndef BSPOT_SINGLE_PRECISION
+NB_MODULE(pybspot, m)
+#else
+NB_MODULE(pybspot_f32, m)
+#endif
+{
     m.def("compute_partial_2d", &compute_partial_2d, "A"_a, "B"_a, "num_plans"_a = 16, "orthogonal"_a = false,
           "Computes partial matching in 2D ");
     m.doc() = "A Python binding to BSP-OT";

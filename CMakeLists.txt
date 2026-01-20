@@ -20,10 +20,15 @@ find_package(Eigen3 REQUIRED NO_MODULE)
 
 add_subdirectory(ext/nanobind)
 
+# Default double precision version
 nanobind_add_module(pybspot module.cpp)
-
 target_link_libraries(pybspot PRIVATE Eigen3::Eigen)
-
 target_include_directories(pybspot PRIVATE ${Python_INCLUDE_DIRS})
-
 install(TARGETS pybspot LIBRARY DESTINATION . RUNTIME DESTINATION .)
+
+# Single precision version
+nanobind_add_module(pybspot_f32 module.cpp)
+target_compile_definitions(pybspot_f32 PRIVATE BSPOT_SINGLE_PRECISION)
+target_link_libraries(pybspot_f32 PRIVATE Eigen3::Eigen)
+target_include_directories(pybspot_f32 PRIVATE ${Python_INCLUDE_DIRS})
+install(TARGETS pybspot_f32 LIBRARY DESTINATION . RUNTIME DESTINATION .)
