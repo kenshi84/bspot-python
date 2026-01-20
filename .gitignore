@@ -207,3 +207,4 @@ marimo/_lsp/
 __marimo__/
 temp*
 a.out
+.vscode/
