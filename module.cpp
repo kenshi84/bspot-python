@@ -8,19 +8,22 @@ using namespace nb::literals;
 using namespace Eigen;
 using namespace BSPOT;
 
-VectorXi compute_partial_2d(const Matrix<scalar,2,-1> &A,
-                            const Matrix<scalar,2,-1> &B,
-                            int num_plans = 16,
-                            bool orthogonal = false) {
-    const cost_function cost = [&A, &B](size_t i, size_t j) {
-        return (A.col(i) - B.col(j)).squaredNorm();
+template<int dim>
+VectorXi compute_partial_dim(const Matrix<scalar,-1,-1> &A,
+                             const Matrix<scalar,-1,-1> &B,
+                             int num_plans,
+                             bool orthogonal) {
+    const Points<dim> A_fixed = A;
+    const Points<dim> B_fixed = B;
+    const cost_function cost = [&A_fixed, &B_fixed](size_t i, size_t j) {
+        return (A_fixed.col(i) - B_fixed.col(j)).squaredNorm();
     };
-    PartialBSPMatching<2> BSP(A, B, cost);
+    PartialBSPMatching<dim> BSP(A_fixed, B_fixed, cost);
     std::vector<InjectiveMatching> plans(num_plans);
-#pragma omp parallel for
+    #pragma omp parallel for
     for (int i = 0; i < num_plans; i++){
         if (orthogonal) {
-            const Matrix<scalar,2,-1> Q = sampleUnitGaussianMat(2, 2).fullPivHouseholderQr().matrixQ();
+            const Matrix<scalar,dim,dim> Q = sampleUnitGaussianMat(dim, dim).fullPivHouseholderQr().matrixQ();
             plans[i] = BSP.computePartialMatching(Q, false);
         } else {
             plans[i] = BSP.computePartialMatching();
@@ -31,13 +34,39 @@ VectorXi compute_partial_2d(const Matrix<scalar,2,-1> &A,
     return Map<const VectorXi>(result.getPlan().data(), result.getPlan().size());
 }
 
+VectorXi compute_partial(const Matrix<scalar,-1,-1> &A,
+                         const Matrix<scalar,-1,-1> &B,
+                         int num_plans = 16,
+                         bool orthogonal = false) {
+    if (A.rows() != B.rows()) {
+        throw std::runtime_error("Source and target points must have the same dimension");
+    }
+    if (A.cols() > B.cols()) {
+        throw std::runtime_error("Number of source points must be less than or equal to number of target points");
+    }
+    switch (A.rows()) {
+    case 2:
+        return compute_partial_dim<2>(A, B, num_plans, orthogonal);
+    case 3:
+        return compute_partial_dim<3>(A, B, num_plans, orthogonal);
+    case 4:
+        return compute_partial_dim<4>(A, B, num_plans, orthogonal);
+    case 5:
+        return compute_partial_dim<5>(A, B, num_plans, orthogonal);
+    case 6:
+        return compute_partial_dim<6>(A, B, num_plans, orthogonal);
+    default:
+        throw std::runtime_error("Dimension higher than 6 is not supported");
+    }
+}
+
 #ifndef BSPOT_SINGLE_PRECISION
 NB_MODULE(pybspot, m)
 #else
 NB_MODULE(pybspot_f32, m)
 #endif
 {
-    m.def("compute_partial_2d", &compute_partial_2d, "A"_a, "B"_a, "num_plans"_a = 16, "orthogonal"_a = false,
-          "Computes partial matching in 2D ");
+    m.def("compute_partial", &compute_partial, "A"_a, "B"_a, "num_plans"_a = 16, "orthogonal"_a = false,
+          "Computes partial matching between two point clouds in 2<=d<=6 dimension.");
     m.doc() = "A Python binding to BSP-OT";
 }
