@@ -13,6 +13,68 @@ int num_threads = 0;
 void set_num_threads(int n) { num_threads = n; }
 
 template<int dim>
+VectorXi compute_matching_dim(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
+                              const nb::DRef<const Matrix<scalar,-1,-1>> &B,
+                              int num_plans,
+                              bool orthogonal,
+                              bool gaussian) {
+    const Points<dim> A_fixed = A;
+    const Points<dim> B_fixed = B;
+    const cost_function cost = [&A_fixed, &B_fixed](size_t i, size_t j) {
+        return (A_fixed.col(i) - B_fixed.col(j)).squaredNorm();
+    };
+    std::vector<BijectiveMatching> plans(num_plans);
+    #pragma omp parallel for
+    for (int i = 0; i < num_plans; i++) {
+        BijectiveBSPMatching<dim> BSP(A_fixed, B_fixed);
+        if (orthogonal) {
+            const Matrix<scalar,dim,dim> Q = sampleUnitGaussianMat(dim, dim).fullPivHouseholderQr().matrixQ();
+            plans[i] = BSP.computeOrthogonalMatching(Q);
+        } else if (gaussian) {
+            plans[i] = BSP.computeGaussianMatching();
+        } else {
+            plans[i] = BSP.computeMatching();
+        }
+    }
+    BijectiveMatching T{};
+    BijectiveMatching result = MergePlans(plans, cost, T);
+    return Map<const VectorXi>(result.getPlan().data(), result.getPlan().size());
+}
+
+VectorXi compute_matching(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
+                          const nb::DRef<const Matrix<scalar,-1,-1>> &B,
+                          int num_plans = 16,
+                          bool orthogonal = false,
+                          bool gaussian = false) {
+    if (num_threads > 0) {
+        omp_set_num_threads(num_threads);
+    }
+    if (A.rows() != B.rows()) {
+        throw std::runtime_error("Source and target points must have the same dimension");
+    }
+    if (A.cols() != B.cols()) {
+        throw std::runtime_error("Source and target point clouds must have the same number of points");
+    }
+    if (orthogonal && gaussian) {
+        throw std::runtime_error("Only one of orthogonal and gaussian options can be true");
+    }
+    switch (A.rows()) {
+    case 2:
+        return compute_matching_dim<2>(A, B, num_plans, orthogonal, gaussian);
+    case 3:
+        return compute_matching_dim<3>(A, B, num_plans, orthogonal, gaussian);
+    case 4:
+        return compute_matching_dim<4>(A, B, num_plans, orthogonal, gaussian);
+    case 5:
+        return compute_matching_dim<5>(A, B, num_plans, orthogonal, gaussian);
+    case 6:
+        return compute_matching_dim<6>(A, B, num_plans, orthogonal, gaussian);
+    default:
+        throw std::runtime_error("Dimension higher than 6 is not supported");
+    }
+}
+
+template<int dim>
 VectorXi compute_partial_matching_dim(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
                                       const nb::DRef<const Matrix<scalar,-1,-1>> &B,
                                       int num_plans,
@@ -25,7 +87,7 @@ VectorXi compute_partial_matching_dim(const nb::DRef<const Matrix<scalar,-1,-1>>
     PartialBSPMatching<dim> BSP(A_fixed, B_fixed, cost);
     std::vector<InjectiveMatching> plans(num_plans);
     #pragma omp parallel for
-    for (int i = 0; i < num_plans; i++){
+    for (int i = 0; i < num_plans; i++) {
         if (orthogonal) {
             const Matrix<scalar,dim,dim> Q = sampleUnitGaussianMat(dim, dim).fullPivHouseholderQr().matrixQ();
             plans[i] = BSP.computePartialMatching(Q, false);
@@ -73,6 +135,8 @@ NB_MODULE(pybspot, m)
 NB_MODULE(pybspot_f32, m)
 #endif
 {
+    m.def("compute_matching", &compute_matching, "A"_a, "B"_a, "num_plans"_a = 16, "orthogonal"_a = false, "gaussian"_a = false,
+          "Computes matching between two point clouds in 2<=d<=6 dimension.");
     m.def("compute_partial_matching", &compute_partial_matching, "A"_a, "B"_a, "num_plans"_a = 16, "orthogonal"_a = false,
           "Computes partial matching between two point clouds in 2<=d<=6 dimension.");
     m.def("set_num_threads", &set_num_threads, "n"_a,
