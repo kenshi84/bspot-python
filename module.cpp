@@ -1,6 +1,7 @@
 #include <vector>
 #include <nanobind/nanobind.h>
 #include <nanobind/eigen/dense.h>
+#include <nanobind/eigen/sparse.h>
 #include <omp.h>
 #include "BSP-OT_header_only.h"
 
@@ -12,7 +13,52 @@ using namespace BSPOT;
 int num_threads = 0;
 void set_num_threads(int n) { num_threads = n; }
 
-template<int dim>
+template <int dim>
+SparseMatrix<scalar> compute_coupling_dim(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
+                                          const nb::DRef<const Eigen::Vector<scalar,-1>> &mu,
+                                          const nb::DRef<const Matrix<scalar,-1,-1>> &B,
+                                          const nb::DRef<const Eigen::Vector<scalar,-1>> &nu) {
+    const Points<dim> A_fixed = A;
+    const Points<dim> B_fixed = B;
+    const Atoms mu_atoms = FromMass(mu);
+    const Atoms nu_atoms = FromMass(nu);
+    GeneralBSPMatching<dim> BSP(A_fixed, mu_atoms, B_fixed, nu_atoms);
+    return BSP.computeCoupling();
+}
+
+SparseMatrix<scalar> compute_coupling(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
+                                      const nb::DRef<const Eigen::Vector<scalar,-1>> &mu,
+                                      const nb::DRef<const Matrix<scalar,-1,-1>> &B,
+                                      const nb::DRef<const Eigen::Vector<scalar,-1>> &nu) {
+    if (num_threads > 0) {
+        omp_set_num_threads(num_threads);
+    }
+    if (A.rows() != B.rows()) {
+        throw std::runtime_error("Source and target points must have the same dimension");
+    }
+    if (mu.size() != A.cols()) {
+        throw std::runtime_error("Size of mu must be equal to number of source points");
+    }
+    if (nu.size() != B.cols()) {
+        throw std::runtime_error("Size of nu must be equal to number of target points");
+    }
+    switch (A.rows()) {
+    case 2:
+        return compute_coupling_dim<2>(A, mu, B, nu);
+    case 3:
+        return compute_coupling_dim<3>(A, mu, B, nu);
+    case 4:
+        return compute_coupling_dim<4>(A, mu, B, nu);
+    case 5:
+        return compute_coupling_dim<5>(A, mu, B, nu);
+    case 6:
+        return compute_coupling_dim<6>(A, mu, B, nu);
+    default:
+        throw std::runtime_error("Dimension higher than 6 is not supported");
+    }
+}
+
+template <int dim>
 VectorXi compute_matching_dim(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
                               const nb::DRef<const Matrix<scalar,-1,-1>> &B,
                               int num_plans,
@@ -74,7 +120,7 @@ VectorXi compute_matching(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
     }
 }
 
-template<int dim>
+template <int dim>
 VectorXi compute_partial_matching_dim(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
                                       const nb::DRef<const Matrix<scalar,-1,-1>> &B,
                                       int num_plans,
@@ -139,6 +185,8 @@ NB_MODULE(pybspot_f32, m)
           "Computes matching between two point clouds in 2<=d<=6 dimension.");
     m.def("compute_partial_matching", &compute_partial_matching, "A"_a, "B"_a, "num_plans"_a = 16, "orthogonal"_a = false,
           "Computes partial matching between two point clouds in 2<=d<=6 dimension.");
+    m.def("compute_coupling", &compute_coupling, "A"_a, "mu"_a, "B"_a, "nu"_a,
+          "Computes coupling between two point clouds in 2<=d<=6 dimension.");
     m.def("set_num_threads", &set_num_threads, "n"_a,
           "Sets the number of threads used in computation. If n<=0, uses default number of threads.");
     m.doc() = "A Python binding to BSP-OT";
