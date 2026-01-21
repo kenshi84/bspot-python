@@ -1,3 +1,6 @@
+#include <string>
+#include <type_traits>
+#include <utility>
 #include <vector>
 #include <nanobind/nanobind.h>
 #include <nanobind/eigen/dense.h>
@@ -12,6 +15,20 @@ using namespace BSPOT;
 
 int num_threads = 0;
 void set_num_threads(int n) { num_threads = n; }
+
+constexpr int kMinDim = 2;
+constexpr int kMaxDim = 10;
+
+template <int Dim, int MaxDim, typename F>
+decltype(auto) dispatch_dim(int dim, F&& f) {
+    if (dim == Dim) {
+        return f(std::integral_constant<int, Dim>{});
+    }
+    if constexpr (Dim < MaxDim) {
+        return dispatch_dim<Dim + 1, MaxDim>(dim, std::forward<F>(f));
+    }
+    throw std::runtime_error("Dimension must be between " + std::to_string(kMinDim) + " and " + std::to_string(kMaxDim));
+}
 
 template <int dim>
 SparseMatrix<scalar> compute_coupling_dim(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
@@ -42,20 +59,9 @@ SparseMatrix<scalar> compute_coupling(const nb::DRef<const Matrix<scalar,-1,-1>>
     if (nu.size() != B.cols()) {
         throw std::runtime_error("Size of nu must be equal to number of target points");
     }
-    switch (A.rows()) {
-    case 2:
-        return compute_coupling_dim<2>(A, mu, B, nu);
-    case 3:
-        return compute_coupling_dim<3>(A, mu, B, nu);
-    case 4:
-        return compute_coupling_dim<4>(A, mu, B, nu);
-    case 5:
-        return compute_coupling_dim<5>(A, mu, B, nu);
-    case 6:
-        return compute_coupling_dim<6>(A, mu, B, nu);
-    default:
-        throw std::runtime_error("Dimension higher than 6 is not supported");
-    }
+    return dispatch_dim<kMinDim, kMaxDim>(A.rows(), [&](auto dim_tag) {
+        return compute_coupling_dim<decltype(dim_tag)::value>(A, mu, B, nu);
+    });
 }
 
 template <int dim>
@@ -104,20 +110,9 @@ VectorXi compute_matching(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
     if (orthogonal && gaussian) {
         throw std::runtime_error("Only one of orthogonal and gaussian options can be true");
     }
-    switch (A.rows()) {
-    case 2:
-        return compute_matching_dim<2>(A, B, num_plans, orthogonal, gaussian);
-    case 3:
-        return compute_matching_dim<3>(A, B, num_plans, orthogonal, gaussian);
-    case 4:
-        return compute_matching_dim<4>(A, B, num_plans, orthogonal, gaussian);
-    case 5:
-        return compute_matching_dim<5>(A, B, num_plans, orthogonal, gaussian);
-    case 6:
-        return compute_matching_dim<6>(A, B, num_plans, orthogonal, gaussian);
-    default:
-        throw std::runtime_error("Dimension higher than 6 is not supported");
-    }
+    return dispatch_dim<kMinDim, kMaxDim>(A.rows(), [&](auto dim_tag) {
+        return compute_matching_dim<decltype(dim_tag)::value>(A, B, num_plans, orthogonal, gaussian);
+    });
 }
 
 template <int dim>
@@ -160,20 +155,9 @@ Matrix<scalar,-1,-1> compute_transport_gradient(const nb::DRef<const Matrix<scal
     if (B.cols() != nu.size()) {
         throw std::runtime_error("Target points and target masses must have the same size");
     }
-    switch (A.rows()) {
-    case 2:
-        return compute_transport_gradient_dim<2>(A, mu, B, nu, num_plans);
-    case 3:
-        return compute_transport_gradient_dim<3>(A, mu, B, nu, num_plans);
-    case 4:
-        return compute_transport_gradient_dim<4>(A, mu, B, nu, num_plans);
-    case 5:
-        return compute_transport_gradient_dim<5>(A, mu, B, nu, num_plans);
-    case 6:
-        return compute_transport_gradient_dim<6>(A, mu, B, nu, num_plans);
-    default:
-        throw std::runtime_error("Dimension higher than 6 is not supported");
-    }
+    return dispatch_dim<kMinDim, kMaxDim>(A.rows(), [&](auto dim_tag) {
+        return compute_transport_gradient_dim<decltype(dim_tag)::value>(A, mu, B, nu, num_plans);
+    });
 }
 
 template <int dim>
@@ -215,20 +199,9 @@ VectorXi compute_partial_matching(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
     if (A.cols() > B.cols()) {
         throw std::runtime_error("Number of source points must be less than or equal to number of target points");
     }
-    switch (A.rows()) {
-    case 2:
-        return compute_partial_matching_dim<2>(A, B, num_plans, orthogonal);
-    case 3:
-        return compute_partial_matching_dim<3>(A, B, num_plans, orthogonal);
-    case 4:
-        return compute_partial_matching_dim<4>(A, B, num_plans, orthogonal);
-    case 5:
-        return compute_partial_matching_dim<5>(A, B, num_plans, orthogonal);
-    case 6:
-        return compute_partial_matching_dim<6>(A, B, num_plans, orthogonal);
-    default:
-        throw std::runtime_error("Dimension higher than 6 is not supported");
-    }
+    return dispatch_dim<kMinDim, kMaxDim>(A.rows(), [&](auto dim_tag) {
+        return compute_partial_matching_dim<decltype(dim_tag)::value>(A, B, num_plans, orthogonal);
+    });
 }
 
 #ifndef BSPOT_SINGLE_PRECISION
@@ -238,13 +211,13 @@ NB_MODULE(pybspot_f32, m)
 #endif
 {
     m.def("compute_matching", &compute_matching, "A"_a, "B"_a, "num_plans"_a = 16, "orthogonal"_a = false, "gaussian"_a = false,
-          "Computes matching between two point clouds in 2<=d<=6 dimension.");
+          "Computes matching between two point clouds in 2<=d<=10 dimension.");
     m.def("compute_partial_matching", &compute_partial_matching, "A"_a, "B"_a, "num_plans"_a = 16, "orthogonal"_a = false,
-          "Computes partial matching between two point clouds in 2<=d<=6 dimension.");
+          "Computes partial matching between two point clouds in 2<=d<=10 dimension.");
     m.def("compute_coupling", &compute_coupling, "A"_a, "mu"_a, "B"_a, "nu"_a,
-          "Computes coupling between two point clouds in 2<=d<=6 dimension.");
+          "Computes coupling between two point clouds in 2<=d<=10 dimension.");
     m.def("compute_transport_gradient", &compute_transport_gradient, "A"_a, "mu"_a, "B"_a, "nu"_a, "num_plans"_a = 16,
-          "Computes transport gradient between two point clouds in 2<=d<=6 dimension.");
+          "Computes transport gradient between two point clouds in 2<=d<=10 dimension.");
     m.def("set_num_threads", &set_num_threads, "n"_a,
           "Sets the number of threads used in computation. If n<=0, uses default number of threads.");
     m.doc() = "A Python binding to BSP-OT";
