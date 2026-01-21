@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = { file = "LICENSE" }
 authors = [{ name = "Kenshi Takayama", email = "kenshi84@gmail.com"}]
+dependencies = ["numpy"]
 
 [project.urls]
 Homepage = "https://github.com/kenshi84/bspot-python"
@@ -25,8 +26,8 @@ minimum-version = "build-system.requires"
 # Setuptools-style build caching in a local directory
 build-dir = "build/{wheel_tag}"
 
-# Build stable ABI wheels for CPython 3.12+
-wheel.py-api = "cp312"
+[tool.scikit-build.sdist]
+include = ["ext/nanobind/**", "ext/eigen/**"]
 
 [tool.scikit-build.cmake]
 build-type = "Release"
