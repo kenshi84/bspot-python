@@ -210,14 +210,17 @@ NB_MODULE(pybspot, m)
 NB_MODULE(pybspot_f32, m)
 #endif
 {
+    const auto docstring = [](const char *s) -> std::string {
+        return "Computes " + std::string(s) + " between two point clouds in " + std::to_string(kMinDim) + "<=d<=" + std::to_string(kMaxDim) + " dimension.";
+    };
     m.def("compute_matching", &compute_matching, "A"_a, "B"_a, "num_plans"_a = 16, "orthogonal"_a = false, "gaussian"_a = false,
-          "Computes matching between two point clouds in 2<=d<=10 dimension.");
+        docstring("matching").c_str());
     m.def("compute_partial_matching", &compute_partial_matching, "A"_a, "B"_a, "num_plans"_a = 16, "orthogonal"_a = false,
-          "Computes partial matching between two point clouds in 2<=d<=10 dimension.");
+          docstring("partial matching").c_str());
     m.def("compute_coupling", &compute_coupling, "A"_a, "mu"_a, "B"_a, "nu"_a,
-          "Computes coupling between two point clouds in 2<=d<=10 dimension.");
+          docstring("coupling").c_str());
     m.def("compute_transport_gradient", &compute_transport_gradient, "A"_a, "mu"_a, "B"_a, "nu"_a, "num_plans"_a = 16,
-          "Computes transport gradient between two point clouds in 2<=d<=10 dimension.");
+          docstring("transport gradient").c_str());
     m.def("set_num_threads", &set_num_threads, "n"_a,
           "Sets the number of threads used in computation. If n<=0, uses default number of threads.");
     m.doc() = "A Python binding to BSP-OT";
