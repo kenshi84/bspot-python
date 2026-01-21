@@ -7,6 +7,7 @@
 
 #pragma once
 #include <Eigen/Dense>
+#include <numbers>
 #include <numeric>
 #include <vector>
 #include <Eigen/Sparse>
@@ -1287,7 +1288,7 @@ inline Vecs fibonacci_sphere(int n)
     static double goldenRatio = (1 + std::sqrt(5.))/2.;
     Vecs FS(n);
     for (int i = 0;i<n;i++){
-        double theta = 2 * M_PI * i / goldenRatio;
+        double theta = 2 * std::numbers::pi * i / goldenRatio;
         double phi = std::acos(1 - 2*(i+0.5)/n);
         FS[i] = vec(cos(theta) * sin(phi), sin(theta) * sin(phi), cos(phi));
     }
