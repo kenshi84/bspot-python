@@ -121,6 +121,62 @@ VectorXi compute_matching(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
 }
 
 template <int dim>
+Matrix<scalar,-1,-1> compute_transport_gradient_dim(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
+                                                    const nb::DRef<const Eigen::Vector<scalar,-1>> &mu,
+                                                    const nb::DRef<const Matrix<scalar,-1,-1>> &B,
+                                                    const nb::DRef<const Eigen::Vector<scalar,-1>> &nu,
+                                                    int num_plans) {
+    Points<dim> Grad = Points<dim>::Zero(dim, A.cols());
+    const Points<dim> A_fixed = A;
+    const Points<dim> B_fixed = B;
+    const Atoms mu_atoms = FromMass(mu);
+    const Atoms nu_atoms = FromMass(nu);
+    #pragma omp parallel for
+    for (int i = 0; i < num_plans; i++) {
+        GeneralBSPMatching<dim> BSP(A_fixed, mu_atoms, B_fixed, nu_atoms);
+        const Points<dim> Grad_i = BSP.computeTransportGradient();
+        #pragma omp critical
+        {
+            Grad += Grad_i / num_plans;
+        }
+    }
+    return Grad;
+}
+
+Matrix<scalar,-1,-1> compute_transport_gradient(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
+                                                const nb::DRef<const Eigen::Vector<scalar,-1>> &mu,
+                                                const nb::DRef<const Matrix<scalar,-1,-1>> &B,
+                                                const nb::DRef<const Eigen::Vector<scalar,-1>> &nu,
+                                                int num_plans) {
+    if (num_threads > 0) {
+        omp_set_num_threads(num_threads);
+    }
+    if (A.rows() != B.rows()) {
+        throw std::runtime_error("Source and target points must have the same dimension");
+    }
+    if (A.cols() != mu.size()) {
+        throw std::runtime_error("Source points and source masses must have the same size");
+    }
+    if (B.cols() != nu.size()) {
+        throw std::runtime_error("Target points and target masses must have the same size");
+    }
+    switch (A.rows()) {
+    case 2:
+        return compute_transport_gradient_dim<2>(A, mu, B, nu, num_plans);
+    case 3:
+        return compute_transport_gradient_dim<3>(A, mu, B, nu, num_plans);
+    case 4:
+        return compute_transport_gradient_dim<4>(A, mu, B, nu, num_plans);
+    case 5:
+        return compute_transport_gradient_dim<5>(A, mu, B, nu, num_plans);
+    case 6:
+        return compute_transport_gradient_dim<6>(A, mu, B, nu, num_plans);
+    default:
+        throw std::runtime_error("Dimension higher than 6 is not supported");
+    }
+}
+
+template <int dim>
 VectorXi compute_partial_matching_dim(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
                                       const nb::DRef<const Matrix<scalar,-1,-1>> &B,
                                       int num_plans,
@@ -187,6 +243,8 @@ NB_MODULE(pybspot_f32, m)
           "Computes partial matching between two point clouds in 2<=d<=6 dimension.");
     m.def("compute_coupling", &compute_coupling, "A"_a, "mu"_a, "B"_a, "nu"_a,
           "Computes coupling between two point clouds in 2<=d<=6 dimension.");
+    m.def("compute_transport_gradient", &compute_transport_gradient, "A"_a, "mu"_a, "B"_a, "nu"_a, "num_plans"_a = 16,
+          "Computes transport gradient between two point clouds in 2<=d<=6 dimension.");
     m.def("set_num_threads", &set_num_threads, "n"_a,
           "Sets the number of threads used in computation. If n<=0, uses default number of threads.");
     m.doc() = "A Python binding to BSP-OT";
