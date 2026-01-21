@@ -16,6 +16,11 @@ if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
+if (MSVC)
+  # MSVC's default OpenMP runtime lacks task support; use the LLVM runtime.
+  set(OpenMP_RUNTIME_MSVC "llvm")
+endif()
+
 find_package(OpenMP REQUIRED)
 
 add_subdirectory(ext/nanobind)
