@@ -18,9 +18,27 @@ array([1586, 7207,  330, ..., 3329, 4056, 3637],
       shape=(10000,), dtype=int32)
 ```
 
-# Build wheel locally for Python 3.12 on macOS
-- Download official Python 3.12 installer for macOS from [python.org](https://www.python.org/ftp/python/3.12.10/python-3.12.10-macos11.pkg).
-```
-/Library/Frameworks/Python.framework/Versions/3.12/bin/python3 -m pip install cibuildwheel
-CIBW_BUILD="cp312-*" /Library/Frameworks/Python.framework/Versions/3.12/bin/python3 -m cibuildwheel --output-dir wheels
-```
+# Building (mostly copied from [libigl-python-bindings](https://github.com/libigl/libigl-python-bindings?tab=readme-ov-file#testing-cibuildwheel-locally))
+
+## Testing cibuildwheel locally
+
+Install whichever version of Python from the [official website](https://www.python.org/downloads/) and then run:
+
+    /Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12 -m venv venv-official-3.12
+    source venv-official-3.12/bin/activate
+    python -m pip install cibuildwheel
+    CIBW_BUILD="cp312-*" python -m cibuildwheel --output-dir wheels --platform macos
+
+## Downloading all the artifacts
+
+A successful [.github/workflows/wheels.yml](.github/workflows/wheels.yml) run will generate a lot of `.whl` files. To download these all at once, you can use the following command:
+
+    mkdir -p wheels
+    cd wheels
+    gh run download [runid]
+
+## Uploading to TestPyPI / PyPI
+
+Then these can be uploaded to pypi using:
+
+    python -m twine upload --repository testpypi wheels/*/*.whl wheels/*/*.tar.gz
