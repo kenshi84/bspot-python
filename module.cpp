@@ -227,5 +227,5 @@ NB_MODULE(pybspot_f32, m)
           docstring("transport gradient").c_str());
     m.def("set_num_threads", &set_num_threads, "n"_a,
           "Sets the number of threads used in computation. If n<=0, uses default number of threads.");
-    m.doc() = ("A Python binding to BSP-OT, supporting points dimentionality up to " + std::to_string(kMaxDim) + ".").c_str();
+    m.doc() = ("A Python binding to BSP-OT, supporting points dimensionality up to " + std::to_string(kMaxDim) + ".").c_str();
 }
