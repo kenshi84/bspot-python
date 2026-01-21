@@ -19,6 +19,8 @@ void set_num_threads(int n) { num_threads = n; }
 constexpr int kMinDim = 2;
 constexpr int kMaxDim = 10;
 
+namespace detail {
+
 template <int Dim, int MaxDim, typename F>
 decltype(auto) dispatch_dim(int dim, F&& f) {
     if (dim == Dim) {
@@ -28,40 +30,6 @@ decltype(auto) dispatch_dim(int dim, F&& f) {
         return dispatch_dim<Dim + 1, MaxDim>(dim, std::forward<F>(f));
     }
     throw std::runtime_error("Dimension must be between " + std::to_string(kMinDim) + " and " + std::to_string(kMaxDim));
-}
-
-template <int dim>
-SparseMatrix<scalar> compute_coupling_dim(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
-                                          const nb::DRef<const Eigen::Vector<scalar,-1>> &mu,
-                                          const nb::DRef<const Matrix<scalar,-1,-1>> &B,
-                                          const nb::DRef<const Eigen::Vector<scalar,-1>> &nu) {
-    const Points<dim> A_fixed = A;
-    const Points<dim> B_fixed = B;
-    const Atoms mu_atoms = FromMass(mu);
-    const Atoms nu_atoms = FromMass(nu);
-    GeneralBSPMatching<dim> BSP(A_fixed, mu_atoms, B_fixed, nu_atoms);
-    return BSP.computeCoupling();
-}
-
-SparseMatrix<scalar> compute_coupling(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
-                                      const nb::DRef<const Eigen::Vector<scalar,-1>> &mu,
-                                      const nb::DRef<const Matrix<scalar,-1,-1>> &B,
-                                      const nb::DRef<const Eigen::Vector<scalar,-1>> &nu) {
-    if (num_threads > 0) {
-        omp_set_num_threads(num_threads);
-    }
-    if (A.rows() != B.rows()) {
-        throw std::runtime_error("Source and target points must have the same dimension");
-    }
-    if (mu.size() != A.cols()) {
-        throw std::runtime_error("Size of mu must be equal to number of source points");
-    }
-    if (nu.size() != B.cols()) {
-        throw std::runtime_error("Size of nu must be equal to number of target points");
-    }
-    return dispatch_dim<kMinDim, kMaxDim>(A.rows(), [&](auto dim_tag) {
-        return compute_coupling_dim<decltype(dim_tag)::value>(A, mu, B, nu);
-    });
 }
 
 template <int dim>
@@ -93,26 +61,17 @@ VectorXi compute_matching_dim(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
     return Map<const VectorXi>(result.getPlan().data(), result.getPlan().size());
 }
 
-VectorXi compute_matching(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
-                          const nb::DRef<const Matrix<scalar,-1,-1>> &B,
-                          int num_plans = 16,
-                          bool orthogonal = false,
-                          bool gaussian = false) {
-    if (num_threads > 0) {
-        omp_set_num_threads(num_threads);
-    }
-    if (A.rows() != B.rows()) {
-        throw std::runtime_error("Source and target points must have the same dimension");
-    }
-    if (A.cols() != B.cols()) {
-        throw std::runtime_error("Source and target point clouds must have the same number of points");
-    }
-    if (orthogonal && gaussian) {
-        throw std::runtime_error("Only one of orthogonal and gaussian options can be true");
-    }
-    return dispatch_dim<kMinDim, kMaxDim>(A.rows(), [&](auto dim_tag) {
-        return compute_matching_dim<decltype(dim_tag)::value>(A, B, num_plans, orthogonal, gaussian);
-    });
+template <int dim>
+SparseMatrix<scalar> compute_coupling_dim(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
+                                          const nb::DRef<const Eigen::Vector<scalar,-1>> &mu,
+                                          const nb::DRef<const Matrix<scalar,-1,-1>> &B,
+                                          const nb::DRef<const Eigen::Vector<scalar,-1>> &nu) {
+    const Points<dim> A_fixed = A;
+    const Points<dim> B_fixed = B;
+    const Atoms mu_atoms = FromMass(mu);
+    const Atoms nu_atoms = FromMass(nu);
+    GeneralBSPMatching<dim> BSP(A_fixed, mu_atoms, B_fixed, nu_atoms);
+    return BSP.computeCoupling();
 }
 
 template <int dim>
@@ -136,28 +95,6 @@ Matrix<scalar,-1,-1> compute_transport_gradient_dim(const nb::DRef<const Matrix<
         }
     }
     return Grad;
-}
-
-Matrix<scalar,-1,-1> compute_transport_gradient(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
-                                                const nb::DRef<const Eigen::Vector<scalar,-1>> &mu,
-                                                const nb::DRef<const Matrix<scalar,-1,-1>> &B,
-                                                const nb::DRef<const Eigen::Vector<scalar,-1>> &nu,
-                                                int num_plans) {
-    if (num_threads > 0) {
-        omp_set_num_threads(num_threads);
-    }
-    if (A.rows() != B.rows()) {
-        throw std::runtime_error("Source and target points must have the same dimension");
-    }
-    if (A.cols() != mu.size()) {
-        throw std::runtime_error("Source points and source masses must have the same size");
-    }
-    if (B.cols() != nu.size()) {
-        throw std::runtime_error("Target points and target masses must have the same size");
-    }
-    return dispatch_dim<kMinDim, kMaxDim>(A.rows(), [&](auto dim_tag) {
-        return compute_transport_gradient_dim<decltype(dim_tag)::value>(A, mu, B, nu, num_plans);
-    });
 }
 
 template <int dim>
@@ -186,6 +123,73 @@ VectorXi compute_partial_matching_dim(const nb::DRef<const Matrix<scalar,-1,-1>>
     return Map<const VectorXi>(result.getPlan().data(), result.getPlan().size());
 }
 
+}
+
+VectorXi compute_matching(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
+                          const nb::DRef<const Matrix<scalar,-1,-1>> &B,
+                          int num_plans = 16,
+                          bool orthogonal = false,
+                          bool gaussian = false) {
+    if (num_threads > 0) {
+        omp_set_num_threads(num_threads);
+    }
+    if (A.rows() != B.rows()) {
+        throw std::runtime_error("Source and target points must have the same dimension");
+    }
+    if (A.cols() != B.cols()) {
+        throw std::runtime_error("Source and target point clouds must have the same number of points");
+    }
+    if (orthogonal && gaussian) {
+        throw std::runtime_error("Only one of orthogonal and gaussian options can be true");
+    }
+    return detail::dispatch_dim<kMinDim, kMaxDim>(A.rows(), [&](auto dim_tag) {
+        return detail::compute_matching_dim<decltype(dim_tag)::value>(A, B, num_plans, orthogonal, gaussian);
+    });
+}
+
+SparseMatrix<scalar> compute_coupling(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
+                                      const nb::DRef<const Eigen::Vector<scalar,-1>> &mu,
+                                      const nb::DRef<const Matrix<scalar,-1,-1>> &B,
+                                      const nb::DRef<const Eigen::Vector<scalar,-1>> &nu) {
+    if (num_threads > 0) {
+        omp_set_num_threads(num_threads);
+    }
+    if (A.rows() != B.rows()) {
+        throw std::runtime_error("Source and target points must have the same dimension");
+    }
+    if (mu.size() != A.cols()) {
+        throw std::runtime_error("Size of mu must be equal to number of source points");
+    }
+    if (nu.size() != B.cols()) {
+        throw std::runtime_error("Size of nu must be equal to number of target points");
+    }
+    return detail::dispatch_dim<kMinDim, kMaxDim>(A.rows(), [&](auto dim_tag) {
+        return detail::compute_coupling_dim<decltype(dim_tag)::value>(A, mu, B, nu);
+    });
+}
+
+Matrix<scalar,-1,-1> compute_transport_gradient(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
+                                                const nb::DRef<const Eigen::Vector<scalar,-1>> &mu,
+                                                const nb::DRef<const Matrix<scalar,-1,-1>> &B,
+                                                const nb::DRef<const Eigen::Vector<scalar,-1>> &nu,
+                                                int num_plans) {
+    if (num_threads > 0) {
+        omp_set_num_threads(num_threads);
+    }
+    if (A.rows() != B.rows()) {
+        throw std::runtime_error("Source and target points must have the same dimension");
+    }
+    if (A.cols() != mu.size()) {
+        throw std::runtime_error("Source points and source masses must have the same size");
+    }
+    if (B.cols() != nu.size()) {
+        throw std::runtime_error("Target points and target masses must have the same size");
+    }
+    return detail::dispatch_dim<kMinDim, kMaxDim>(A.rows(), [&](auto dim_tag) {
+        return detail::compute_transport_gradient_dim<decltype(dim_tag)::value>(A, mu, B, nu, num_plans);
+    });
+}
+
 VectorXi compute_partial_matching(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
                                   const nb::DRef<const Matrix<scalar,-1,-1>> &B,
                                   int num_plans = 16,
@@ -199,8 +203,8 @@ VectorXi compute_partial_matching(const nb::DRef<const Matrix<scalar,-1,-1>> &A,
     if (A.cols() > B.cols()) {
         throw std::runtime_error("Number of source points must be less than or equal to number of target points");
     }
-    return dispatch_dim<kMinDim, kMaxDim>(A.rows(), [&](auto dim_tag) {
-        return compute_partial_matching_dim<decltype(dim_tag)::value>(A, B, num_plans, orthogonal);
+    return detail::dispatch_dim<kMinDim, kMaxDim>(A.rows(), [&](auto dim_tag) {
+        return detail::compute_partial_matching_dim<decltype(dim_tag)::value>(A, B, num_plans, orthogonal);
     });
 }
 
@@ -223,5 +227,5 @@ NB_MODULE(pybspot_f32, m)
           docstring("transport gradient").c_str());
     m.def("set_num_threads", &set_num_threads, "n"_a,
           "Sets the number of threads used in computation. If n<=0, uses default number of threads.");
-    m.doc() = "A Python binding to BSP-OT";
+    m.doc() = ("A Python binding to BSP-OT, supporting points dimentionality up to " + std::to_string(kMaxDim) + ".").c_str();
 }
