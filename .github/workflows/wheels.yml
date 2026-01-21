@@ -32,6 +32,8 @@ jobs:
         arch: [x86_64, arm64]
         pybuilds: [cp39, cp310, cp311, cp312, cp313] # Define pybuilds at the top level
         exclude:
+          - os: ubuntu-24.04
+            arch: arm64   # Exclude arm64 on Ubuntu
           - os: ubuntu-24.04-arm  # No need to specify arch, it's already implicit
             arch: x86_64  # Exclude x86_64 on ARM
           - os: macos-latest
