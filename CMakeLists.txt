@@ -16,10 +16,10 @@ if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
-find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(OpenMP REQUIRED)
 
 add_subdirectory(ext/nanobind)
+add_subdirectory(ext/eigen)
 
 # Default double precision version
 nanobind_add_module(pybspot module.cpp)
