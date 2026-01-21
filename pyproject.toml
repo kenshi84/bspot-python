@@ -38,7 +38,7 @@ build-verbosity = 1
 
 # Run pytest to ensure that the package was correctly built
 test-command = "pytest {project}/tests"
-test-requires = "pytest"
+test-requires = ["pytest", "numpy", "scipy"]
 
 # linux images
 manylinux-x86_64-image = "quay.io/pypa/manylinux_2_28_x86_64"
